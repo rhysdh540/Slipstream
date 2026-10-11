@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 @Mixin(LevelRenderer.class)
 abstract class LevelRendererMixin {
     @ModifyExpressionValue(
-            #if MC >= 26
+            #if MC >= 26 || neoforge
             method = {"lambda$render$0", "lambda$renderLevel$0"},
             #else
             method = "method_62218",

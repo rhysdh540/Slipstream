@@ -4,9 +4,11 @@ package dev.rdh.slipstream.b3d;
 import dev.rdh.slipstream.VulkanPresenter;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.vulkan.VkDevice;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class VulkanPresentation {
-    private static final System.Logger LOG = System.getLogger("Slipstream");
+    private static final Logger LOG = LoggerFactory.getLogger("Slipstream");
 
     private VulkanPresentation() {}
 
@@ -22,10 +24,10 @@ public final class VulkanPresentation {
             VkDevice device = (VkDevice) backend.getClass().getMethod("vkDevice").invoke(backend);
             var window = Minecraft.getInstance().getWindow();
             var presenter = VulkanPresenter.create(device, window.handle(), GlPresentation.usesSdl(), width, height, format);
-            if (presenter != null) LOG.log(System.Logger.Level.INFO, "Presenting Vulkan without the swapchain; native acquisition and presentation bypassed");
+            if (presenter != null) LOG.info("Presenting Vulkan without the swapchain; native acquisition and presentation bypassed");
             return presenter;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
-            LOG.log(System.Logger.Level.ERROR, "Vulkan presenter initialization failed; retaining native swapchain", failure);
+            LOG.error("Vulkan presenter initialization failed; retaining native swapchain", failure);
             return null;
         }
     }

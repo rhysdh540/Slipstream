@@ -1,6 +1,9 @@
 package dev.rdh.slipstream.macos;
 
 import dev.rdh.slipstream.GlPresenter;
+import org.lwjgl.BufferUtils;
+
+import java.nio.ByteBuffer;
 
 import static org.lwjgl.opengl.CGL.CGLGetCurrentContext;
 import static org.lwjgl.opengl.GL11.*;
@@ -14,6 +17,8 @@ public final class MacosPresenter implements GlPresenter {
     private final int[] framebuffers = new int[MacosSurfacePool.SIZE];
     private int sourceFramebuffer;
     private int width, height;
+    private final ByteBuffer mask = BufferUtils.createByteBuffer(4);
+    private final float[] clear = new float[4];
     private boolean closed;
 
     public MacosPresenter(long window) {
@@ -24,18 +29,18 @@ public final class MacosPresenter implements GlPresenter {
     }
 
     @Override
-    public void present(int texture, int width, int height) {
+    public void present(int texture, int width, int height, boolean forceOpaque) {
         if (texture == 0) throw new IllegalArgumentException("Invalid texture");
-        present(texture, 0, width, height);
+        present(texture, 0, width, height, forceOpaque);
     }
 
     @Override
-    public void presentFramebuffer(int framebuffer, int width, int height) {
+    public void presentFramebuffer(int framebuffer, int width, int height, boolean forceOpaque) {
         if (framebuffer < 0) throw new IllegalArgumentException("Invalid framebuffer");
-        present(0, framebuffer, width, height);
+        present(0, framebuffer, width, height, forceOpaque);
     }
 
-    private void present(int texture, int framebuffer, int width, int height) {
+    private void present(int texture, int framebuffer, int width, int height, boolean forceOpaque) {
         checkContext();
         if (width <= 0 || height <= 0) throw new IllegalArgumentException("Invalid frame");
         int read = glGetInteger(GL_READ_FRAMEBUFFER_BINDING);
@@ -54,12 +59,22 @@ public final class MacosPresenter implements GlPresenter {
                 if (sourceFramebuffer == 0) sourceFramebuffer = glGenFramebuffers();
                 framebuffer = sourceFramebuffer;
             }
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
-            if (texture != 0) glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
-            requireFramebuffer(GL_READ_FRAMEBUFFER);
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffers[next]);
+            glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+            if (texture != 0) glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+            requireFramebuffer(GL_FRAMEBUFFER);
             glDisable(GL_SCISSOR_TEST);
             glDisable(GL_FRAMEBUFFER_SRGB);
+            if (forceOpaque) {
+                // The compositor blends by the frame's alpha; this overwrites it in the source, at some cost.
+                glGetBooleanv(GL_COLOR_WRITEMASK, mask);
+                glGetFloatv(GL_COLOR_CLEAR_VALUE, clear);
+                glColorMask(false, false, false, true);
+                glClearColor(0, 0, 0, 1);
+                glClear(GL_COLOR_BUFFER_BIT);
+                glColorMask(mask.get(0) != 0, mask.get(1) != 0, mask.get(2) != 0, mask.get(3) != 0);
+                glClearColor(clear[0], clear[1], clear[2], clear[3]);
+            }
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffers[next]);
             glBlitFramebuffer(0, 0, width, height, 0, height, width, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
             glFlush();
             pool.show(next);

@@ -2,16 +2,14 @@ package dev.rdh.slipstream.b3d;
 
 import dev.rdh.slipstream.GlPresenter;
 import net.minecraft.client.Minecraft;
-#if MC >= 26
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.Version;
-import net.fabricmc.loader.api.VersionParsingException;
-#else
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+#if MC < 26
 import org.lwjgl.glfw.GLFW;
 #endif
 
 public final class GlPresentation {
-    private static final System.Logger LOG = System.getLogger("Slipstream");
+    private static final Logger LOG = LoggerFactory.getLogger("Slipstream");
     private static final boolean SDL = usesSdl();
     private static GlPresenter presenter;
     private static long window;
@@ -20,16 +18,7 @@ public final class GlPresentation {
     private GlPresentation() {}
 
     public static boolean usesSdl() {
-        #if MC >= 26
-        try {
-            return FabricLoader.getInstance().getModContainer("minecraft").orElseThrow().getMetadata()
-                    .getVersion().compareTo(Version.parse("26.3-alpha.0")) >= 0;
-        } catch (VersionParsingException failure) {
-            throw new IllegalStateException(failure);
-        }
-        #else
-        return false;
-        #endif
+        return GlPresentation.class.getClassLoader().getResource("org/lwjgl/sdl/SDLVideo.class") != null;
     }
 
     public static boolean present(int framebuffer) {
@@ -60,14 +49,14 @@ public final class GlPresentation {
                     failed = true;
                     return false;
                 }
-                LOG.log(System.Logger.Level.INFO, "Presenting without OpenGL swapping");
+                LOG.info("Presenting without OpenGL swapping");
             }
-            presenter.presentFramebuffer(framebuffer, minecraft.getWindow().getWidth(), minecraft.getWindow().getHeight());
+            presenter.presentFramebuffer(framebuffer, minecraft.getWindow().getWidth(), minecraft.getWindow().getHeight(), #if MC < 26 true #else false #endif);
             presented = true;
             return true;
         } catch (RuntimeException | LinkageError failure) {
             failed = true;
-            LOG.log(System.Logger.Level.ERROR, "Presentation bypass disabled; falling back to OpenGL swapping", failure);
+            LOG.error("Presentation bypass disabled; falling back to OpenGL swapping", failure);
             close();
             return false;
         }
@@ -90,7 +79,7 @@ public final class GlPresentation {
         try {
             presenter.close();
         } catch (RuntimeException | LinkageError failure) {
-            LOG.log(System.Logger.Level.ERROR, "Could not close the presenter", failure);
+            LOG.error("Could not close the presenter", failure);
         } finally {
             presenter = null;
         }

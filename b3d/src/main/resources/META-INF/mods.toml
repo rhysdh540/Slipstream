@@ -1,0 +1,21 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "All Rights Reserved"
+
+[[mods]]
+modId = "slipstream"
+version = "${version}"
+displayName = "Slipstream"
+description = "Optimized frame presentation"
+logoFile = "slipstream.png"
+${display_test}
+
+[[dependencies.slipstream]]
+modId = "minecraft"
+${required}
+versionRange = "${minecraft_forge}"
+ordering = "NONE"
+side = "CLIENT"
+
+[[mixins]]
+config = "slipstream.mixins.json"

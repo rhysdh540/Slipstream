@@ -1,11 +1,9 @@
 plugins {
     id("dev.kikugie.stonecutter")
-    id("xyz.wagyourtail.manifold") version "1.1.1-SNAPSHOT"
-    id("net.fabricmc.fabric-loom") version "1.18.4" apply false
-    id("net.fabricmc.fabric-loom-remap") version "1.18.4" apply false
+    id("xyz.wagyourtail.manifold")
 }
 
-stonecutter active "26.3"
+stonecutter active "26.3-fabric"
 
 manifold {
     version = "2026.1.15"
@@ -16,6 +14,10 @@ manifold {
             subproject(project(p)) {
                 val (major, minor) = (v.removePrefix("1.") + ".0").split('.')
                 property("MC", "$major.${minor.padStart(2, '0')}")
+
+                val platform = p.substringAfterLast('-')
+                property(platform)
+                if (platform != "fabric") property("forgelike")
             }
         }
 

@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 abstract class GlDeviceMixin {
     @WrapWithCondition(method = "presentFrame", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSwapBuffers(J)V"), require = 0)
     private boolean slipstream$swap(long window) {
-        return GlPresentation.consume(window);
+        return !GlPresentation.consume(window);
     }
 }
 #endif
