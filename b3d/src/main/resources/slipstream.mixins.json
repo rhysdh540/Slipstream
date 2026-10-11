@@ -1,0 +1,8 @@
+{
+  "required": true,
+  "package": "dev.rdh.slipstream.b3d.mixin",
+  "compatibilityLevel": "JAVA_${java}",
+  "plugin": "dev.rdh.slipstream.b3d.MixinPlugin",
+  "client": ["WindowMixin"],
+  "injectors": { "defaultRequire": 1 }
+}
