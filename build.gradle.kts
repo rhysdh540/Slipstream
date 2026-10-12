@@ -50,13 +50,24 @@ publishMods {
             val loader = if (ornithe) "ornithe" else build.prop("platform")
             val jar = if (ornithe) build.tasks.named<AbstractArchiveTask>("remapJar")
                 else build.jarOutputTask
+            val (minimum, maximum) = when {
+                ornithe -> "1.6.4" to "1.12.2"
+                build.unobfuscated -> "26.1" to "latestRelease"
+                minecraft == "1.21.11" -> "1.21.5" to "1.21.11"
+                loader == "forge" -> minecraft to minecraft
+                loader == "neoforge" -> "1.21" to "1.21.4"
+                else -> "1.19" to "1.21.4"
+            }
             modrinth("modrinth-${minecraft}-${loader}") {
                 from(modrinthOptions)
                 file.set(jar.flatMap { it.archiveFile })
                 version.set("${project.version}-${minecraft}-${loader}")
                 displayName.set("Slipstream ${project.version} ($minecraft, $loader)")
                 modLoaders.add(loader)
-                minecraftVersions.add(minecraft)
+                minecraftVersionRange {
+                    start.set(minimum)
+                    end.set(maximum)
+                }
             }
         }
     }
