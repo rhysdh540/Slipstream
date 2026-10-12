@@ -5,7 +5,6 @@ import org.lwjgl.BufferUtils;
 
 import java.nio.ByteBuffer;
 
-import static org.lwjgl.opengl.CGL.CGLGetCurrentContext;
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL30.*;
 
@@ -23,7 +22,7 @@ public final class MacosPresenter implements GlPresenter {
 
     public MacosPresenter(long window) {
         if (window == 0) throw new IllegalArgumentException("Missing Cocoa window");
-        context = CGLGetCurrentContext();
+        context = Macos.currentContext();
         if (context == 0) throw new IllegalStateException("No current OpenGL context");
         pool = new MacosSurfacePool(window);
     }
@@ -125,7 +124,7 @@ public final class MacosPresenter implements GlPresenter {
 
     private void checkContext() {
         if (closed) throw new IllegalStateException("Presenter is closed");
-        if (Thread.currentThread() != owner || CGLGetCurrentContext() != context) {
+        if (Thread.currentThread() != owner || Macos.currentContext() != context) {
             throw new IllegalStateException("Presentation requires the original OpenGL thread and context");
         }
     }

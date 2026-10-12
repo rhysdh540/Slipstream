@@ -29,6 +29,7 @@ public final class Macos {
     private static final long CREATE = symbol(SURFACE, "IOSurfaceCreate");
     private static final long IN_USE = symbol(SURFACE, "IOSurfaceIsInUse");
     private static final long TEX_IMAGE = symbol(OPENGL, "CGLTexImageIOSurface2D");
+    private static final long CURRENT_CONTEXT = symbol(OPENGL, "CGLGetCurrentContext");
     private static final long MAIN_THREAD = symbol(SYSTEM, "pthread_main_np");
     private static final long MAIN_QUEUE = symbol(DISPATCH, "_dispatch_main_q");
     private static final long SYNC = symbol(DISPATCH, "dispatch_sync_f");
@@ -82,6 +83,10 @@ public final class Macos {
         } finally {
             send(pool, "drain");
         }
+    }
+
+    static long currentContext() {
+        return invokeP(CURRENT_CONTEXT);
     }
 
     static boolean inUse(long surface) {

@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "dev.rdh.slipstream.ornithe.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "client": ["GlfwSwapMixin", "MinecraftMixin", "SdlSwapMixin"],
+  "injectors": { "defaultRequire": 1 }
+}

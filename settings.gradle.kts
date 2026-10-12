@@ -29,3 +29,5 @@ stonecutter {
 }
 
 rootProject.name = "Slipstream"
+
+include("ornithe")
