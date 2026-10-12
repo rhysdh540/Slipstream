@@ -5,6 +5,8 @@
   "name": "Slipstream",
   "description": "Optimized frame presentation",
   "icon": "slipstream.png",
+  "authors": ["rdh"],
+  "license": "MIT",
   "environment": "client",
   "mixins": ["slipstream.mixins.json"],
   "depends": {

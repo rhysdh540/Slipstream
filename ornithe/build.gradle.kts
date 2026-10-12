@@ -37,7 +37,7 @@ ploceus {
 
 loom {
     runs.named("client") {
-        programArgs.addAll(listOf("--userProperties", "{}"))
+        programArguments.addAll(listOf("--userProperties", "{}"))
         if (!providers.gradleProperty("ornithe_off_main").isPresent) jvmArguments.add("-XstartOnFirstThread")
         if (providers.gradleProperty("ornithe_glfw").isPresent) systemProperties.put("legacy_lwjgl3.use_sdl", "false")
     }

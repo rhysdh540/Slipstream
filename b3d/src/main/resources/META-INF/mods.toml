@@ -1,11 +1,12 @@
 modLoader = "javafml"
 loaderVersion = "[1,)"
-license = "All Rights Reserved"
+license = "MIT"
 
 [[mods]]
 modId = "slipstream"
 version = "${version}"
 displayName = "Slipstream"
+authors = "rdh"
 description = "Optimized frame presentation"
 logoFile = "slipstream.png"
 ${display_test}
