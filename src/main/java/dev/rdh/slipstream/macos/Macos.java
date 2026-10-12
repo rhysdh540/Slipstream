@@ -153,6 +153,7 @@ public final class Macos {
             send(transaction, "begin");
             try {
                 set(transaction, "setDisableActions:", true);
+                resize(layer, send(layer, "superlayer"));
                 send(layer, "setContents:", surface);
                 set(layer, "setHidden:", surface == 0);
             } finally {
