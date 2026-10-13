@@ -44,7 +44,7 @@ public final class Presentation {
                 }
                 LOG.info("Presenting without OpenGL swapping");
             }
-            presenter.presentFramebuffer(framebuffer, Display.getWidth(), Display.getHeight(), true);
+            presenter.presentFramebuffer(framebuffer, Display.getWidth(), Display.getHeight());
             return true;
         } catch (RuntimeException | LinkageError failure) {
             failed = true;
@@ -64,12 +64,12 @@ public final class Presentation {
         long window = 0;
         try {
             window = SDLVideo.SDL_GL_GetCurrentWindow();
-        } catch (LinkageError absent) {
+        } catch (LinkageError ignore) {
         }
         if (window != 0) return GlPresenter.create(window, true);
         try {
             window = GLFW.glfwGetCurrentContext();
-        } catch (LinkageError absent) {
+        } catch (LinkageError ignore) {
         }
         return window != 0 ? GlPresenter.create(window, false) : null;
     }

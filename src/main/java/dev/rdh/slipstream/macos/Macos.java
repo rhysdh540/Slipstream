@@ -26,6 +26,7 @@ public final class Macos {
     private static final SharedLibrary DISPATCH = Library.loadNative(Macos.class, "slipstream", "/usr/lib/system/libdispatch.dylib");
     private static final SharedLibrary SYSTEM = Library.loadNative(Macos.class, "slipstream", "/usr/lib/libSystem.B.dylib");
     private static final long SEND = getLibrary().getFunctionAddress("objc_msgSend");
+    static final boolean CONTENTS_OPAQUE = invokePPPZ(objc_getClass("CALayer"), sel_getUid("instancesRespondToSelector:"), sel_getUid("setContentsOpaque:"), SEND);
     private static final long CREATE = symbol(SURFACE, "IOSurfaceCreate");
     private static final long IN_USE = symbol(SURFACE, "IOSurfaceIsInUse");
     private static final long TEX_IMAGE = symbol(OPENGL, "CGLTexImageIOSurface2D");
@@ -133,6 +134,7 @@ public final class Macos {
             if (parent == 0) throw new IllegalStateException("Window has no backing layer");
             long layer = send(objc_getClass("CALayer"), "new");
             set(layer, "setOpaque:", true);
+            if (CONTENTS_OPAQUE) set(layer, "setContentsOpaque:", true);
             set(layer, "setHidden:", true);
             invokePPV(layer, sel_getUid("setAutoresizingMask:"), 18L, SEND);
             resize(layer, parent);

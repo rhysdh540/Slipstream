@@ -28,18 +28,18 @@ public final class MacosPresenter implements GlPresenter {
     }
 
     @Override
-    public void present(int texture, int width, int height, boolean forceOpaque) {
+    public void present(int texture, int width, int height) {
         if (texture == 0) throw new IllegalArgumentException("Invalid texture");
-        present(texture, 0, width, height, forceOpaque);
+        present(texture, 0, width, height);
     }
 
     @Override
-    public void presentFramebuffer(int framebuffer, int width, int height, boolean forceOpaque) {
+    public void presentFramebuffer(int framebuffer, int width, int height) {
         if (framebuffer < 0) throw new IllegalArgumentException("Invalid framebuffer");
-        present(0, framebuffer, width, height, forceOpaque);
+        present(0, framebuffer, width, height);
     }
 
-    private void present(int texture, int framebuffer, int width, int height, boolean forceOpaque) {
+    private void present(int texture, int framebuffer, int width, int height) {
         checkContext();
         if (width <= 0 || height <= 0) throw new IllegalArgumentException("Invalid frame");
         int read = glGetInteger(GL_READ_FRAMEBUFFER_BINDING);
@@ -63,8 +63,8 @@ public final class MacosPresenter implements GlPresenter {
             requireFramebuffer(GL_FRAMEBUFFER);
             glDisable(GL_SCISSOR_TEST);
             glDisable(GL_FRAMEBUFFER_SRGB);
-            if (forceOpaque) {
-                // The compositor blends by the frame's alpha; this overwrites it in the source, at some cost.
+            if (!Macos.CONTENTS_OPAQUE) {
+                // fallback: the compositor blends by the frame's alpha, so overwrite it in the source, at some cost
                 glGetBooleanv(GL_COLOR_WRITEMASK, mask);
                 glGetFloatv(GL_COLOR_CLEAR_VALUE, clear);
                 glColorMask(false, false, false, true);

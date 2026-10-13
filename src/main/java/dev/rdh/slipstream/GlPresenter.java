@@ -13,9 +13,9 @@ public interface GlPresenter extends AutoCloseable {
 	    return null;
 	}
 
-    void present(int texture, int width, int height, boolean forceOpaque);
+    void present(int texture, int width, int height);
 
-    void presentFramebuffer(int framebuffer, int width, int height, boolean forceOpaque);
+    void presentFramebuffer(int framebuffer, int width, int height);
 
     void hide();
 

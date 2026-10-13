@@ -51,7 +51,7 @@ public final class GlPresentation {
                 }
                 LOG.info("Presenting without OpenGL swapping");
             }
-            presenter.presentFramebuffer(framebuffer, minecraft.getWindow().getWidth(), minecraft.getWindow().getHeight(), #if MC < 26 true #else false #endif);
+            presenter.presentFramebuffer(framebuffer, minecraft.getWindow().getWidth(), minecraft.getWindow().getHeight());
             presented = true;
             return true;
         } catch (RuntimeException | LinkageError failure) {
