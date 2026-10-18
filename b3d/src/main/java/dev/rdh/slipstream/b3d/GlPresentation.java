@@ -18,7 +18,25 @@ public final class GlPresentation {
     private GlPresentation() {}
 
     public static boolean usesSdl() {
-        return GlPresentation.class.getClassLoader().getResource("org/lwjgl/sdl/SDLVideo.class") != null;
+        #if MC < 26
+        return false;
+        #else
+        try {
+        #if fabric
+		return net.fabricmc.loader.api.FabricLoader.getInstance()
+					.getModContainer("minecraft").get().getMetadata().getVersion()
+                    .compareTo(net.fabricmc.loader.api.Version.parse("26.2")) > 0;
+        #elif neoforge
+            return org.apache.maven.artifact.versioning.VersionRange.createFromVersionSpec("(26.2,)")
+                    .containsVersion(net.neoforged.fml.loading.FMLLoader.getCurrent().getLoadingModList()
+                            .getModFileById("minecraft").getMods().getFirst().getVersion());
+        #else
+        #error "Unsupported loader"
+        #endif
+        } catch (Exception e) {
+			throw new AssertionError(e);
+		}
+        #endif
     }
 
     public static boolean present(int framebuffer) {
