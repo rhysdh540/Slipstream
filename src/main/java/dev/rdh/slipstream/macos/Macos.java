@@ -25,7 +25,9 @@ public final class Macos {
     private static final SharedLibrary OPENGL = framework("OpenGL");
     private static final SharedLibrary DISPATCH = Library.loadNative(Macos.class, "slipstream", "/usr/lib/system/libdispatch.dylib");
     private static final SharedLibrary SYSTEM = Library.loadNative(Macos.class, "slipstream", "/usr/lib/libSystem.B.dylib");
-    private static final long SEND = getLibrary().getFunctionAddress("objc_msgSend");
+    static final long SEND = getLibrary().getFunctionAddress("objc_msgSend");
+    // the JIT folds this, so MacosHud is never loaded at all unless someone asks for the overlay
+    static final boolean HUD = System.getenv("MTL_HUD_ENABLED") != null;
     static final boolean CONTENTS_OPAQUE = invokePPPZ(objc_getClass("CALayer"), sel_getUid("instancesRespondToSelector:"), sel_getUid("setContentsOpaque:"), SEND);
     private static final long CREATE = symbol(SURFACE, "IOSurfaceCreate");
     private static final long IN_USE = symbol(SURFACE, "IOSurfaceIsInUse");
@@ -37,11 +39,11 @@ public final class Macos {
 
     private Macos() {}
 
-    private static SharedLibrary framework(String name) {
+    static SharedLibrary framework(String name) {
         return Library.loadNative(Macos.class, "slipstream", "/System/Library/Frameworks/" + name + ".framework/" + name);
     }
 
-    private static long symbol(SharedLibrary library, String name) {
+    static long symbol(SharedLibrary library, String name) {
         long address = library.getFunctionAddress(name);
         if (address == 0) throw new IllegalStateException("Missing macOS symbol: " + name);
         return address;
@@ -55,11 +57,11 @@ public final class Macos {
         return invokePPPP(object, sel_getUid(selector), value, SEND);
     }
 
-    private static void set(long object, String selector, boolean value) {
+    static void set(long object, String selector, boolean value) {
         invokePPV(object, sel_getUid(selector), value, SEND);
     }
 
-    private static long string(String text) {
+    static long string(String text) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             return send(objc_getClass("NSString"), "stringWithUTF8String:", memAddress(stack.UTF8(text)));
         }
@@ -144,7 +146,7 @@ public final class Macos {
         return result[0];
     }
 
-    private static void resize(long layer, long parent) {
+    static void resize(long layer, long parent) {
         long bounds = send(parent, "valueForKey:", string("bounds"));
         invokePPPPV(layer, sel_getUid("setValue:forKey:"), bounds, string("frame"), SEND);
     }
@@ -172,7 +174,7 @@ public final class Macos {
         });
     }
 
-    private static void onMain(Runnable action) {
+    static void onMain(Runnable action) {
         if (invokeI(MAIN_THREAD) != 0) {
             pooled(action);
             return;
@@ -224,7 +226,7 @@ public final class Macos {
         void invoke(long context);
     }
 
-    private static void pooled(Runnable action) {
+    static void pooled(Runnable action) {
         long pool = send(objc_getClass("NSAutoreleasePool"), "new");
         try {
             action.run();

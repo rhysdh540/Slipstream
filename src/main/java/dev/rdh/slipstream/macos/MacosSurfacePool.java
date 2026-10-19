@@ -6,14 +6,17 @@ final class MacosSurfacePool {
     static final int SIZE = 3;
     final long[] surfaces = new long[SIZE];
     private final long layer;
+    private final MacosHud hud;
     private int shown = -1;
 
     MacosSurfacePool(long window) {
         layer = Macos.attach(window);
+        hud = Macos.HUD ? new MacosHud(Macos.send(layer, "superlayer")) : null;
     }
 
     void allocate(int width, int height) {
         for (int i = 0; i < SIZE; i++) surfaces[i] = Macos.surface(width, height);
+        if (Macos.HUD) hud.resize(width, height);
     }
 
     int free(IntPredicate ready) {
@@ -26,11 +29,13 @@ final class MacosSurfacePool {
 
     void show(int index) {
         Macos.commit(layer, surfaces[index]);
+        if (Macos.HUD) hud.present();
         shown = index;
     }
 
     void hide() {
         Macos.commit(layer, 0);
+        if (Macos.HUD) hud.hide();
         shown = -1;
     }
 
@@ -43,6 +48,7 @@ final class MacosSurfacePool {
     }
 
     void close() {
+        if (Macos.HUD) hud.close();
         Macos.detach(layer);
         release();
     }
