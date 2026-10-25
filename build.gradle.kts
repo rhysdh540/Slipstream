@@ -31,7 +31,7 @@ dependencies {
 }
 
 publishMods {
-    changelog.set(providers.gradleProperty("changelog").orElse("Slipstream ${project.version}. macOS only."))
+    changelog.set(providers.gradleProperty("changelog"))
     type.set(STABLE)
     dryRun.set(providers.gradleProperty("publishDryRun").map(String::toBoolean).orElse(false))
 
@@ -69,6 +69,19 @@ publishMods {
                     end.set(maximum)
                 }
             }
+        }
+
+        github {
+            accessToken.set(providers.environmentVariable("GITHUB_TOKEN"))
+            repository.set("rhysdh540/Slipstream")
+            commitish.set(providers.environmentVariable("GITHUB_SHA").orElse("main"))
+            tagName.set("v${project.version}")
+            displayName.set(project.version.toString())
+            file.set(builds.first().let { build ->
+                if (build.name == "ornithe") build.tasks.named<AbstractArchiveTask>("remapJar")
+                else build.jarOutputTask
+            }.flatMap { it.archiveFile })
+            builds.drop(1).forEach { additionalFile(it) }
         }
     }
 }

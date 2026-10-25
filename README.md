@@ -8,7 +8,7 @@ Slipstream is a client-side Minecraft performance mod that reduces the overhead 
 - Supports OpenGL and Minecraft's Vulkan renderer
 - Can improve FPS when frame presentation is a bottleneck; gains depend on your hardware, renderer, and modpack
 
-Slipstream changes how frames are displayed, not how worlds are rendered. Only works when vsync is off. macOS only (for now).
+Slipstream changes how frames are displayed, not how worlds are rendered. Only works when vsync is off.
 
 ## License
 
