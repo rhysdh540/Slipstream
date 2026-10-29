@@ -1,3 +1,5 @@
+import me.modmuss50.mpp.PublishOptions
+
 plugins {
     id("java-library")
     id("me.modmuss50.mod-publish-plugin") version "2.2.1"
@@ -40,6 +42,11 @@ publishMods {
         accessToken.set(providers.environmentVariable("MODRINTH_PAT"))
         environment.set(CLIENT_ONLY)
     }
+    val curseforgeOptions = curseforgeOptions {
+        projectId.set("1739902")
+        accessToken.set(providers.environmentVariable("CURSEFORGE_TOKEN"))
+        client.set(true)
+    }
 
     gradle.projectsEvaluated {
         val builds = project(":b3d").subprojects + project(":ornithe")
@@ -58,15 +65,31 @@ publishMods {
                 loader == "neoforge" -> "1.21" to "1.21.4"
                 else -> "1.19" to "1.21.4"
             }
-            modrinth("modrinth-${minecraft}-${loader}") {
-                from(modrinthOptions)
+
+            val config = Action<PublishOptions> {
                 file.set(jar.flatMap { it.archiveFile })
                 version.set("${project.version}-${minecraft}-${loader}")
                 displayName.set("Slipstream ${project.version} ($minecraft, $loader)")
                 modLoaders.add(loader)
+            }
+
+            modrinth("modrinth-${minecraft}-${loader}") {
+                from(modrinthOptions)
+                config.execute(this)
                 minecraftVersionRange {
-                    start.set(minimum)
-                    end.set(maximum)
+                    start = minimum
+                    end = maximum
+                    includeSnapshots = true
+                }
+            }
+            if (!ornithe) {
+                curseforge("curseforge-${minecraft}-${loader}") {
+                    from(curseforgeOptions)
+                    config.execute(this)
+                    minecraftVersionRange {
+                        start = minimum
+                        end = maximum
+                    }
                 }
             }
         }
