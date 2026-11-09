@@ -140,6 +140,9 @@ public final class Macos {
             set(layer, "setHidden:", true);
             invokePPV(layer, sel_getUid("setAutoresizingMask:"), 18L, SEND);
             resize(layer, parent);
+            // AppKit can order view-backed layers above this one, and a stale CAMetalLayer would then cover it
+            invokePPPPV(layer, sel_getUid("setValue:forKey:"),
+            invokePPP(objc_getClass("NSNumber"), sel_getUid("numberWithInt:"), 1, SEND), string("zPosition"), SEND);
             send(parent, "addSublayer:", layer);
             result[0] = layer;
         });
