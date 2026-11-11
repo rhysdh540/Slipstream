@@ -17,6 +17,8 @@ public interface GlPresenter extends AutoCloseable {
 
     void presentFramebuffer(int framebuffer, int width, int height);
 
+    void pace();
+
     void hide();
 
     @Override void close();

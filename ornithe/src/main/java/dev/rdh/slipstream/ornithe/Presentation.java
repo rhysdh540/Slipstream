@@ -10,12 +10,13 @@ import org.slf4j.LoggerFactory;
 public final class Presentation {
     private static final Logger LOG = LoggerFactory.getLogger("Slipstream");
     private static GlPresenter presenter;
-    private static boolean failed, presented;
+    private static boolean failed, presented, vsync;
 
     private Presentation() {}
 
     public static boolean present(int framebuffer, boolean vsync) {
-        return presented = show(framebuffer, vsync);
+        Presentation.vsync = vsync;
+        return presented = show(framebuffer);
     }
 
     public static boolean presented() {
@@ -25,13 +26,21 @@ public final class Presentation {
     public static boolean consume() {
         boolean skip = presented;
         presented = false;
+        if (skip && vsync) {
+            try {
+                presenter.pace();
+            } catch (RuntimeException | LinkageError failure) {
+                // this frame is already on screen, so the swap is still skipped; the next one swaps
+                disable(failure);
+            }
+        }
         return skip;
     }
 
-    private static boolean show(int framebuffer, boolean vsync) {
+    private static boolean show(int framebuffer) {
         if (failed) return false;
         try {
-            if (vsync || !Display.isVisible()) {
+            if (!Display.isVisible()) {
                 if (presenter != null) presenter.hide();
                 return false;
             }
@@ -47,16 +56,20 @@ public final class Presentation {
             presenter.presentFramebuffer(framebuffer, Display.getWidth(), Display.getHeight());
             return true;
         } catch (RuntimeException | LinkageError failure) {
-            failed = true;
-            LOG.error("Presentation bypass disabled; falling back to OpenGL swapping", failure);
-            if (presenter != null) {
-                try {
-                    presenter.close();
-                } catch (RuntimeException | LinkageError ignored) {
-                }
-                presenter = null;
-            }
+            disable(failure);
             return false;
+        }
+    }
+
+    private static void disable(Throwable failure) {
+        failed = true;
+        LOG.error("Presentation bypass disabled; falling back to OpenGL swapping", failure);
+        if (presenter != null) {
+            try {
+                presenter.close();
+            } catch (RuntimeException | LinkageError ignored) {
+            }
+            presenter = null;
         }
     }
 

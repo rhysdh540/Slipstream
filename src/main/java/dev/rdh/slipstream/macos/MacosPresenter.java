@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL30.*;
+import static org.lwjgl.opengl.GL32.*;
 
 public final class MacosPresenter implements GlPresenter {
     private final long context;
@@ -51,7 +52,7 @@ public final class MacosPresenter implements GlPresenter {
             if (this.width != width || this.height != height) resize(width, height);
             int next = pool.free(i -> true);
             if (next < 0) {
-                glFlush();
+                awaitGpu(submit());
                 return;
             }
             if (texture != 0) {
@@ -75,8 +76,9 @@ public final class MacosPresenter implements GlPresenter {
             }
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffers[next]);
             glBlitFramebuffer(0, 0, width, height, 0, height, width, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
-            glFlush();
+            long frame = submit();
             pool.show(next);
+            awaitGpu(frame); // TODO: skip this when not gpu bound?
         } finally {
             glBindFramebuffer(GL_READ_FRAMEBUFFER, read);
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw);
@@ -84,6 +86,27 @@ public final class MacosPresenter implements GlPresenter {
             if (scissor) glEnable(GL_SCISSOR_TEST);
             if (srgb) glEnable(GL_FRAMEBUFFER_SRGB);
         }
+    }
+
+    private static long submit() {
+        long sync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+        glFlush();
+        return sync;
+    }
+
+    private static void awaitGpu(long sync) {
+        if (sync == 0) throw new IllegalStateException("glFenceSync failed");
+        int result = glClientWaitSync(sync, 0, 1_000_000_000L);
+        glDeleteSync(sync);
+        if (result == GL_WAIT_FAILED) {
+            throw new IllegalStateException("glClientWaitSync failed: 0x" + Integer.toHexString(glGetError()));
+        }
+    }
+
+    @Override
+    public void pace() {
+        checkContext();
+        Macos.pace();
     }
 
     @Override
@@ -142,6 +165,7 @@ public final class MacosPresenter implements GlPresenter {
     public void close() {
         if (closed) return;
         checkContext();
+        Macos.stopDisplayLink();
         releaseSurfaces();
         pool.close();
         if (sourceFramebuffer != 0) glDeleteFramebuffers(sourceFramebuffer);

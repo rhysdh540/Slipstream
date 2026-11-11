@@ -34,6 +34,7 @@ final class MacosSurfacePool {
     }
 
     void hide() {
+        if (shown < 0) return; // already hidden
         Macos.commit(layer, 0);
         if (Macos.HUD) hud.hide();
         shown = -1;

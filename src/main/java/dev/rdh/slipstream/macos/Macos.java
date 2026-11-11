@@ -8,6 +8,7 @@ import org.lwjgl.system.SharedLibrary;
 import org.lwjgl.system.libffi.FFICIF;
 
 import java.lang.invoke.MethodHandles;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow;
 import static org.lwjgl.sdl.SDLProperties.SDL_GetPointerProperty;
@@ -15,6 +16,7 @@ import static org.lwjgl.sdl.SDLVideo.*;
 import static org.lwjgl.system.JNI.*;
 import static org.lwjgl.system.MemoryUtil.memAddress;
 import static org.lwjgl.system.MemoryUtil.memGetAddress;
+import static org.lwjgl.system.MemoryUtil.memPutLong;
 import static org.lwjgl.system.APIUtil.apiCreateCIF;
 import static org.lwjgl.system.libffi.LibFFI.*;
 import static org.lwjgl.system.macosx.CoreFoundation.CFRelease;
@@ -36,6 +38,11 @@ public final class Macos {
     private static final long MAIN_THREAD = symbol(SYSTEM, "pthread_main_np");
     private static final long MAIN_QUEUE = symbol(DISPATCH, "_dispatch_main_q");
     private static final long SYNC = symbol(DISPATCH, "dispatch_sync_f");
+    private static final SharedLibrary VIDEO = framework("CoreVideo");
+    private static volatile long vsyncs;
+    private static volatile Thread pacing;
+    private static long paced;
+    private static long link, callback;
 
     private Macos() {}
 
@@ -201,16 +208,7 @@ public final class Macos {
         Callback.Descriptor DESCRIPTOR = descriptor();
 
         private static Callback.Descriptor descriptor() {
-            FFICIF cif = apiCreateCIF(ffi_type_void, ffi_type_pointer);
-            var constructor = Callback.Descriptor.class.getConstructors()[0];
-            try {
-                // LWJGL 3.4.3 added the callback interface to the descriptor constructor.
-                return (Callback.Descriptor) constructor.newInstance(constructor.getParameterCount() == 2
-                        ? new Object[]{MethodHandles.lookup(), cif}
-                        : new Object[]{DispatchFunction.class, MethodHandles.lookup(), cif});
-            } catch (ReflectiveOperationException failure) {
-                throw new IllegalStateException("Could not bind the main-thread callback", failure);
-            }
+            return Macos.descriptor(DispatchFunction.class, MethodHandles.lookup(), apiCreateCIF(ffi_type_void, ffi_type_pointer));
         }
 
         @Override
@@ -224,6 +222,86 @@ public final class Macos {
         }
 
         void invoke(long context);
+    }
+
+    private static Callback.Descriptor descriptor(Class<?> type, MethodHandles.Lookup lookup, FFICIF cif) {
+        var constructor = Callback.Descriptor.class.getConstructors()[0];
+        try {
+            return (Callback.Descriptor) constructor.newInstance(constructor.getParameterCount() == 2
+                    ? new Object[]{lookup, cif} : new Object[]{type, lookup, cif});
+        } catch (ReflectiveOperationException failure) {
+            throw new IllegalStateException("Could not bind a native callback", failure);
+        }
+    }
+
+    @FunctionalInterface
+    private interface DisplayLinkFunction extends CallbackI {
+        Callback.Descriptor DESCRIPTOR = Macos.descriptor(DisplayLinkFunction.class, MethodHandles.lookup(),
+                apiCreateCIF(ffi_type_sint32, ffi_type_pointer, ffi_type_pointer, ffi_type_pointer, ffi_type_uint64, ffi_type_pointer, ffi_type_pointer));
+
+        @Override
+        default Callback.Descriptor getDescriptor() {
+            return DESCRIPTOR;
+        }
+
+        @Override
+        default void callback(long result, long arguments) {
+            vsync();
+            memPutLong(result, 0);
+        }
+
+        void vsync();
+    }
+
+    // TODO: this ticks at the main display's rate, which ignores multi monitor setups...
+    private static void startDisplayLink() {
+        if (link != 0) return;
+        DisplayLinkFunction tick = () -> {
+            vsyncs++;
+            Thread waiting = pacing;
+            if (waiting != null) LockSupport.unpark(waiting);
+        };
+        callback = tick.address(); // we need to free it later
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            var created = stack.mallocPointer(1);
+            check(invokePI(memAddress(created), symbol(VIDEO, "CVDisplayLinkCreateWithActiveCGDisplays")), "create");
+            link = created.get(0);
+            check(invokePPPI(link, callback, 0, symbol(VIDEO, "CVDisplayLinkSetOutputCallback")), "callback");
+            check(invokePI(link, symbol(VIDEO, "CVDisplayLinkStart")), "start");
+        } catch (RuntimeException | Error failure) {
+            stopDisplayLink();
+            throw failure;
+        }
+    }
+
+    static void stopDisplayLink() {
+        if (link != 0) {
+            invokePI(link, symbol(VIDEO, "CVDisplayLinkStop"));
+            CFRelease(link);
+            link = 0;
+        }
+        if (callback != 0) {
+            Callback.free(callback);
+            callback = 0;
+        }
+    }
+
+    private static void check(int result, String what) {
+        if (result != 0) throw new IllegalStateException("CVDisplayLink " + what + " failed: " + result);
+    }
+
+    static void pace() {
+        startDisplayLink();
+        if (vsyncs == paced) {
+            pacing = Thread.currentThread();
+            // a display link that stops ticking (cause the display is asleep) must not hang the game
+            long deadline = System.nanoTime() + 50_000_000L;
+            while (vsyncs == paced && System.nanoTime() < deadline) {
+                LockSupport.parkNanos(deadline - System.nanoTime());
+            }
+            pacing = null;
+        }
+        paced = vsyncs;
     }
 
     static void pooled(Runnable action) {

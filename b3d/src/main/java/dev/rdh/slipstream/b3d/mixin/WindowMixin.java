@@ -13,9 +13,4 @@ abstract class WindowMixin {
     private void slipstream$close(CallbackInfo ci) {
         GlPresentation.close();
     }
-
-    @Inject(method = "updateVsync", at = @At("HEAD"), require = 0)
-    private void slipstream$vsync(boolean enabled, CallbackInfo ci) {
-        if (enabled) GlPresentation.hide();
-    }
 }

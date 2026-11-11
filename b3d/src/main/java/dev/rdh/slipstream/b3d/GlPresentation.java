@@ -13,7 +13,7 @@ public final class GlPresentation {
     private static final boolean SDL = usesSdl();
     private static GlPresenter presenter;
     private static long window;
-    private static boolean presented, failed;
+    private static boolean presented, failed, vsync;
 
     private GlPresentation() {}
 
@@ -52,11 +52,11 @@ public final class GlPresentation {
             boolean iconified = GLFW.glfwGetWindowAttrib(handle, GLFW.GLFW_ICONIFIED) != 0;
             #endif
             #if MC >= 19
-            boolean vsync = minecraft.options.enableVsync().get();
+            vsync = minecraft.options.enableVsync().get();
             #else
-            boolean vsync = minecraft.options.enableVsync;
+            vsync = minecraft.options.enableVsync;
             #endif
-            if (vsync || iconified) {
+            if (iconified) {
                 hide();
                 return false;
             }
@@ -73,9 +73,7 @@ public final class GlPresentation {
             presented = true;
             return true;
         } catch (RuntimeException | LinkageError failure) {
-            failed = true;
-            LOG.error("Presentation bypass disabled; falling back to OpenGL swapping", failure);
-            close();
+            disable(failure);
             return false;
         }
     }
@@ -83,7 +81,20 @@ public final class GlPresentation {
     public static boolean consume(long handle) {
         boolean skip = presented && window == handle;
         presented = false;
+        if (skip && vsync) {
+            try {
+                presenter.pace();
+            } catch (RuntimeException | LinkageError failure) {
+                disable(failure);
+            }
+        }
         return skip;
+    }
+
+    private static void disable(Throwable failure) {
+        failed = true;
+        LOG.error("Presentation bypass disabled; falling back to OpenGL swapping", failure);
+        close();
     }
 
     public static void hide() {
