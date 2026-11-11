@@ -1,5 +1,7 @@
 package dev.rdh.slipstream.ornithe.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
 import dev.rdh.slipstream.ornithe.Presentation;
 import net.minecraft.client.Minecraft;
@@ -23,5 +25,12 @@ abstract class MinecraftMixin {
     @Inject(method = "*", at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/Display;update()V", remap = false))
     private void slipstream$update(CallbackInfo ci) {
         if (!Presentation.presented()) Presentation.present(0, options.vsync);
+    }
+
+    @WrapOperation(method = "*", at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/Display;sync(I)V", remap = false), require = 0)
+    private void slipstream$limit(int fps, Operation<Void> original) {
+        long start = System.nanoTime();
+        original.call(fps);
+        Presentation.idle(System.nanoTime() - start);
     }
 }

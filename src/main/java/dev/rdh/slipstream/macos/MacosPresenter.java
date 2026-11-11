@@ -21,6 +21,11 @@ public final class MacosPresenter implements GlPresenter {
     private final float[] clear = new float[4];
     private boolean closed;
 
+    // based off vibes
+    private static final long STRICT_ABOVE = 8_300_000L, OVERLAP_BELOW = 5_000_000L;
+    private boolean strict = true;
+    private long lastFrame, idle, work;
+
     public MacosPresenter(long window) {
         if (window == 0) throw new IllegalArgumentException("Missing Cocoa window");
         context = Macos.currentContext();
@@ -49,10 +54,11 @@ public final class MacosPresenter implements GlPresenter {
         boolean scissor = glIsEnabled(GL_SCISSOR_TEST);
         boolean srgb = glIsEnabled(GL_FRAMEBUFFER_SRGB);
         try {
+            measure();
             if (this.width != width || this.height != height) resize(width, height);
             int next = pool.free(i -> true);
             if (next < 0) {
-                awaitGpu(submit());
+                finish(submit());
                 return;
             }
             if (texture != 0) {
@@ -78,7 +84,7 @@ public final class MacosPresenter implements GlPresenter {
             glBlitFramebuffer(0, 0, width, height, 0, height, width, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
             long frame = submit();
             pool.show(next);
-            awaitGpu(frame); // TODO: skip this when not gpu bound?
+            finish(frame);
         } finally {
             glBindFramebuffer(GL_READ_FRAMEBUFFER, read);
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw);
@@ -86,6 +92,28 @@ public final class MacosPresenter implements GlPresenter {
             if (scissor) glEnable(GL_SCISSOR_TEST);
             if (srgb) glEnable(GL_FRAMEBUFFER_SRGB);
         }
+    }
+
+    private void measure() {
+        long now = System.nanoTime();
+        if (lastFrame != 0) {
+            long frame = Math.max(0, now - lastFrame - idle);
+            // exponential average over 8 frames, so slow frame rates react more slowly in time
+            work = work == 0 ? frame : work + (frame - work) / 8;
+            if (strict ? work < OVERLAP_BELOW : work > STRICT_ABOVE) strict = !strict;
+        }
+        lastFrame = now;
+        idle = 0;
+    }
+
+    private void finish(long sync) {
+        if (strict) awaitGpu(sync);
+        else glDeleteSync(sync);
+    }
+
+    @Override
+    public void idle(long nanos) {
+        idle += nanos;
     }
 
     private static long submit() {
@@ -106,7 +134,9 @@ public final class MacosPresenter implements GlPresenter {
     @Override
     public void pace() {
         checkContext();
+        long start = System.nanoTime();
         Macos.pace();
+        idle += System.nanoTime() - start;
     }
 
     @Override

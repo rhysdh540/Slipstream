@@ -97,6 +97,17 @@ public final class GlPresentation {
         close();
     }
 
+    private static long limiting;
+
+    public static void startLimit() {
+        limiting = System.nanoTime();
+    }
+
+    public static void endLimit() {
+        if (presenter != null && limiting != 0) presenter.idle(System.nanoTime() - limiting);
+        limiting = 0;
+    }
+
     public static void hide() {
         presented = false;
         if (presenter != null) presenter.hide();

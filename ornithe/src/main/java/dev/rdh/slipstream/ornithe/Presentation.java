@@ -37,6 +37,10 @@ public final class Presentation {
         return skip;
     }
 
+    public static void idle(long nanos) {
+        if (presenter != null) presenter.idle(nanos);
+    }
+
     private static boolean show(int framebuffer) {
         if (failed) return false;
         try {

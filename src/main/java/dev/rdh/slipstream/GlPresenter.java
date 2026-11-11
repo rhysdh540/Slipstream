@@ -19,6 +19,8 @@ public interface GlPresenter extends AutoCloseable {
 
     void pace();
 
+    void idle(long nanos);
+
     void hide();
 
     @Override void close();
