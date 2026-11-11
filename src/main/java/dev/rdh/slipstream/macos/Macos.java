@@ -42,7 +42,7 @@ public final class Macos {
     private static volatile long vsyncs;
     private static volatile Thread pacing;
     private static long paced;
-    private static long link, callback;
+    private static long link, callback, screen;
 
     private Macos() {}
 
@@ -253,7 +253,6 @@ public final class Macos {
         void vsync();
     }
 
-    // TODO: this ticks at the main display's rate, which ignores multi monitor setups...
     private static void startDisplayLink() {
         if (link != 0) return;
         DisplayLinkFunction tick = () -> {
@@ -279,6 +278,7 @@ public final class Macos {
             invokePI(link, symbol(VIDEO, "CVDisplayLinkStop"));
             CFRelease(link);
             link = 0;
+            screen = 0;
         }
         if (callback != 0) {
             Callback.free(callback);
@@ -290,8 +290,20 @@ public final class Macos {
         if (result != 0) throw new IllegalStateException("CVDisplayLink " + what + " failed: " + result);
     }
 
-    static void pace() {
+    private static void follow(long window) {
+        long current = send(window, "screen");
+        if (current == 0 || current == screen) return;
+        pooled(() -> {
+            long number = send(send(current, "deviceDescription"), "objectForKey:", string("NSScreenNumber"));
+            int display = number == 0 ? 0 : (int) send(number, "unsignedIntValue");
+            if (display != 0) check(invokePI(link, display, symbol(VIDEO, "CVDisplayLinkSetCurrentCGDisplay")), "display " + display);
+        });
+        screen = current;
+    }
+
+    static void pace(long window) {
         startDisplayLink();
+        follow(window);
         if (vsyncs == paced) {
             pacing = Thread.currentThread();
             // a display link that stops ticking (cause the display is asleep) must not hang the game

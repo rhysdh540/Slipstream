@@ -10,7 +10,7 @@ import static org.lwjgl.opengl.GL30.*;
 import static org.lwjgl.opengl.GL32.*;
 
 public final class MacosPresenter implements GlPresenter {
-    private final long context;
+    private final long context, window;
     private final MacosSurfacePool pool;
     private final Thread owner = Thread.currentThread();
     private final int[] textures = new int[MacosSurfacePool.SIZE];
@@ -30,6 +30,7 @@ public final class MacosPresenter implements GlPresenter {
         if (window == 0) throw new IllegalArgumentException("Missing Cocoa window");
         context = Macos.currentContext();
         if (context == 0) throw new IllegalStateException("No current OpenGL context");
+        this.window = window;
         pool = new MacosSurfacePool(window);
     }
 
@@ -135,7 +136,7 @@ public final class MacosPresenter implements GlPresenter {
     public void pace() {
         checkContext();
         long start = System.nanoTime();
-        Macos.pace();
+        Macos.pace(window);
         idle += System.nanoTime() - start;
     }
 
