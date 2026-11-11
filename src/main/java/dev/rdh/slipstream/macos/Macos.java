@@ -139,6 +139,10 @@ public final class Macos {
             if (CONTENTS_OPAQUE) set(layer, "setContentsOpaque:", true);
             set(layer, "setHidden:", true);
             invokePPV(layer, sel_getUid("setAutoresizingMask:"), 18L, SEND);
+            // AppKit re-sorts a view's sublayers, which can drop this layer below the SDL/GLFW layer.
+            // That layer keeps the last natively presented frame, so it would hide ours until the next resize.
+            long z = invokePPP(objc_getClass("NSNumber"), sel_getUid("numberWithInt:"), 1, SEND);
+            invokePPPPV(layer, sel_getUid("setValue:forKey:"), z, string("zPosition"), SEND);
             resize(layer, parent);
             send(parent, "addSublayer:", layer);
             result[0] = layer;
