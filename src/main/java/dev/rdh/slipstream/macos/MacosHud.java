@@ -32,6 +32,7 @@ final class MacosHud {
             Macos.set(created, "setOpaque:", false);
             Macos.set(created, "setHidden:", true);
             invokePPV(created, sel_getUid("setAutoresizingMask:"), 18L, SEND);
+            Macos.zPosition(created, 2);
             Macos.resize(created, parent);
             send(parent, "addSublayer:", created);
             made[0] = created;

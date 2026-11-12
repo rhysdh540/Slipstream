@@ -74,6 +74,11 @@ public final class Macos {
         }
     }
 
+    static void zPosition(long layer, int z) {
+        long number = invokePPP(objc_getClass("NSNumber"), sel_getUid("numberWithInt:"), z, SEND);
+        invokePPPPV(layer, sel_getUid("setValue:forKey:"), number, string("zPosition"), SEND);
+    }
+
     private static void put(long dictionary, String key, int value) {
         long number = invokePPP(objc_getClass("NSNumber"), sel_getUid("numberWithInt:"), value, SEND);
         invokePPPPV(dictionary, sel_getUid("setObject:forKey:"), number, string(key), SEND);
@@ -146,6 +151,7 @@ public final class Macos {
             if (CONTENTS_OPAQUE) set(layer, "setContentsOpaque:", true);
             set(layer, "setHidden:", true);
             invokePPV(layer, sel_getUid("setAutoresizingMask:"), 18L, SEND);
+            zPosition(layer, 1);
             resize(layer, parent);
             send(parent, "addSublayer:", layer);
             result[0] = layer;
