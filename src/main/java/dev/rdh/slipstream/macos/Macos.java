@@ -9,6 +9,7 @@ import org.lwjgl.system.libffi.FFICIF;
 
 import java.lang.invoke.MethodHandles;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Consumer;
 
 import static org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow;
 import static org.lwjgl.sdl.SDLProperties.SDL_GetPointerProperty;
@@ -187,9 +188,24 @@ public final class Macos {
         });
     }
 
+    private static volatile Consumer<Runnable> mainThread;
+
+    /**
+     * For a launcher that keeps the main thread in a loop of its own (RetroFuturaBootstrap, under lwjgl3ify), which
+     * never drains the main dispatch queue: main-thread work goes through it instead, or waiting on the queue hangs.
+     */
+    public static void setMainThread(Consumer<Runnable> runner) {
+        mainThread = runner;
+    }
+
     static void onMain(Runnable action) {
         if (invokeI(MAIN_THREAD) != 0) {
             pooled(action);
+            return;
+        }
+        Consumer<Runnable> runner = mainThread;
+        if (runner != null) {
+            runner.accept(() -> pooled(action));
             return;
         }
         Throwable[] failure = new Throwable[1];

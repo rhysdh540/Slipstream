@@ -1,14 +1,15 @@
 pluginManagement {
     repositories {
-        maven("https://maven.fabricmc.net/")
+        maven("https://maven.fabricmc.net")
         maven("https://maven.kikugie.dev/releases")
+        maven("https://nexus.gtnewhorizons.com/repository/public")
         gradlePluginPortal()
         mavenCentral()
     }
 }
 
 plugins {
-    id("dev.kikugie.stonecutter") version "0.9.8"
+    id("dev.kikugie.stonecutter") version("0.9.8")
 }
 
 stonecutter {
@@ -31,3 +32,4 @@ stonecutter {
 rootProject.name = "Slipstream"
 
 include("ornithe")
+include("forge1710")

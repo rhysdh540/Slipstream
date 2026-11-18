@@ -1,0 +1,9 @@
+[{
+    "modid": "slipstream",
+    "name": "Slipstream",
+    "version": "${version}",
+    "mcversion": "1.7.10",
+    "description": "Optimized frame presentation",
+    "url": "https://github.com/rhysdh540/Slipstream",
+    "authorList": ["rdh"]
+}]

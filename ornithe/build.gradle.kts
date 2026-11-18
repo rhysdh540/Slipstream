@@ -7,7 +7,7 @@ plugins {
 val mc = providers.gradleProperty("ornithe_minecraft").getOrElse("1.8.9")
 val feather = providers.gradleProperty("ornithe_feather").getOrElse("2")
 
-base.archivesName = "slipstream-$mc"
+base.archivesName = "slipstream-$mc-fabric"
 
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(25)
