@@ -15,7 +15,7 @@ public final class Presentation {
     // forge's loading screen uses its own thread, we don't want that
     private static Thread client;
     private static GlPresenter presenter;
-    private static boolean failed, presented, vsync;
+    private static boolean failed, presented, vsync, unswapped;
     private static final MethodHandle SWAPS = swaps();
 
     private Presentation() {}
@@ -26,7 +26,13 @@ public final class Presentation {
 
     public static boolean present(int framebuffer, int width, int height) {
         if (Thread.currentThread() != client) return false;
-        return presented = show(framebuffer, width, height);
+        if (unswapped) {
+            disable(new IllegalStateException("Minecraft's Display.update call is not hooked; another mod may have replaced it"));
+            return false;
+        }
+        presented = show(framebuffer, width, height);
+        unswapped = presented;
+        return presented;
     }
 
     private static MethodHandle swaps() {
@@ -40,6 +46,7 @@ public final class Presentation {
     }
 
     public static void update(Runnable update) {
+        unswapped = false;
         presentWindow();
         if (!consume() || SWAPS == null) {
             update.run();
