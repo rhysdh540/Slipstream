@@ -4,6 +4,7 @@ import dev.rdh.slipstream.GlPresenter;
 import org.lwjgl.BufferUtils;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL30.*;
@@ -23,8 +24,13 @@ public final class MacosPresenter implements GlPresenter {
 
     // based off vibes
     private static final long STRICT_ABOVE = 8_300_000L, OVERLAP_BELOW = 5_000_000L;
-    private boolean strict = true;
-    private long lastFrame, idle, work;
+    private static final double MAX_STRICT_COST = 1.1;
+    private static final int SETTLE = 8, TRIAL = 32;
+    private static final long FIRST_RETRY = 2_000_000_000L, LAST_RETRY = 16_000_000_000L;
+    private boolean strict = true, trial;
+    private int sinceSwitch, strictCount, overlapCount;
+    private long lastFrame, idle, work, retryAt, retryDelay = FIRST_RETRY;
+    private final long[] strictFrames = new long[TRIAL - SETTLE], overlapFrames = new long[TRIAL - SETTLE];
 
     public MacosPresenter(long window) {
         if (window == 0) throw new IllegalArgumentException("Missing Cocoa window");
@@ -101,10 +107,52 @@ public final class MacosPresenter implements GlPresenter {
             long frame = Math.max(0, now - lastFrame - idle);
             // exponential average over 8 frames, so slow frame rates react more slowly in time
             work = work == 0 ? frame : work + (frame - work) / 8;
-            if (strict ? work < OVERLAP_BELOW : work > STRICT_ABOVE) strict = !strict;
+            decide(now, frame);
         }
         lastFrame = now;
         idle = 0;
+    }
+
+    private void decide(long now, long frame) {
+        if (work < OVERLAP_BELOW) {
+            if (strict) switchTo(false);
+            strictCount = overlapCount = 0;
+            trial = false;
+            retryDelay = FIRST_RETRY;
+            return;
+        }
+        if (!strict && strictCount == 0 && work <= STRICT_ABOVE) return;
+        if (++sinceSwitch > SETTLE) {
+            if (strict) strictFrames[strictCount++ % strictFrames.length] = frame;
+            else overlapFrames[overlapCount++ % overlapFrames.length] = frame;
+        }
+        if (sinceSwitch < TRIAL) return;
+        if (trial) {
+            trial = false;
+            boolean wantStrict = strictCount == 0 || overlapCount == 0 ? strict
+                    : median(strictFrames, strictCount) <= median(overlapFrames, overlapCount) * MAX_STRICT_COST;
+            if (wantStrict != strict) switchTo(wantStrict);
+            retryAt = now + retryDelay;
+            retryDelay = Math.min(retryDelay * 2, LAST_RETRY);
+            return;
+        }
+        if (now >= retryAt || (strict ? overlapCount : strictCount) == 0) {
+            if (strict) overlapCount = 0;
+            else strictCount = 0;
+            switchTo(!strict);
+            trial = true;
+        }
+    }
+
+    private void switchTo(boolean strict) {
+        this.strict = strict;
+        sinceSwitch = 0;
+    }
+
+    private static long median(long[] frames, int count) {
+        long[] sorted = Arrays.copyOf(frames, Math.min(count, frames.length));
+        Arrays.sort(sorted);
+        return sorted[sorted.length / 2];
     }
 
     private void finish(long sync) {
