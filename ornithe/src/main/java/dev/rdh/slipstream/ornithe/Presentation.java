@@ -10,13 +10,29 @@ import org.slf4j.LoggerFactory;
 public final class Presentation {
     private static final Logger LOG = LoggerFactory.getLogger("Slipstream");
     private static GlPresenter presenter;
-    private static boolean failed, presented, vsync;
+    private static boolean failed, presented, vsync, direct;
 
     private Presentation() {}
 
     public static boolean present(int framebuffer, boolean vsync) {
+        return present(framebuffer, vsync, false);
+    }
+
+    /** {@code direct}: nothing else needs the framebuffer's own colour texture this frame (see GlPresenter). */
+    public static boolean present(int framebuffer, boolean vsync, boolean direct) {
         Presentation.vsync = vsync;
+        Presentation.direct = direct;
         return presented = show(framebuffer);
+    }
+
+    /** Before something reads the main framebuffer's colour texture outside a frame (screenshots). */
+    public static void syncFramebuffer() {
+        if (presenter == null) return;
+        try {
+            presenter.syncFramebuffer();
+        } catch (RuntimeException | LinkageError failure) {
+            disable(failure);
+        }
     }
 
     public static boolean presented() {
@@ -57,7 +73,7 @@ public final class Presentation {
                 }
                 LOG.info("Presenting without OpenGL swapping");
             }
-            presenter.presentFramebuffer(framebuffer, Display.getWidth(), Display.getHeight());
+            presenter.presentFramebuffer(framebuffer, Display.getWidth(), Display.getHeight(), direct);
             return true;
         } catch (RuntimeException | LinkageError failure) {
             disable(failure);

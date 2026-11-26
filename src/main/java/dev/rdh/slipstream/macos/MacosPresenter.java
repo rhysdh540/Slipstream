@@ -32,6 +32,15 @@ public final class MacosPresenter implements GlPresenter {
     private long lastFrame, idle, work, retryAt, retryDelay = FIRST_RETRY;
     private final long[] strictFrames = new long[TRIAL - SETTLE], overlapFrames = new long[TRIAL - SETTLE];
 
+    // direct presentation: the game framebuffer renders straight into a surface (see presentFramebuffer(..., direct))
+    private static final boolean DIRECT = Boolean.getBoolean("slipstream.direct");
+    private int attached = -1;          // surface attached to the game framebuffer, or -1
+    private int attachedFramebuffer;
+    private int ownTexture;             // the framebuffer's own colour texture, given back when leaving direct mode
+    private boolean attachedFresh;      // the attached surface holds a finished frame that hasn't been shown
+    private boolean ownTextureStale;    // the newest frame is in a surface, not in the framebuffer's own texture
+    private int lastShown = -1;
+
     public MacosPresenter(long window) {
         if (window == 0) throw new IllegalArgumentException("Missing Cocoa window");
         context = Macos.currentContext();
@@ -48,13 +57,126 @@ public final class MacosPresenter implements GlPresenter {
 
     @Override
     public void presentFramebuffer(int framebuffer, int width, int height) {
+        presentFramebuffer(framebuffer, width, height, false);
+    }
+
+    @Override
+    public void presentFramebuffer(int framebuffer, int width, int height, boolean direct) {
         if (framebuffer < 0) throw new IllegalArgumentException("Invalid framebuffer");
-        present(0, framebuffer, width, height);
+        if (!DIRECT || !Macos.CONTENTS_OPAQUE || framebuffer == 0 || (!direct && attached < 0)) {
+            present(0, framebuffer, width, height);
+            return;
+        }
+        presentDirect(framebuffer, width, height, direct);
+    }
+
+    /**
+     * Direct presentation. The game framebuffer's colour attachment is one of the pool's surfaces, so the frame that was
+     * just rendered is already presentable: no copy. A surface is shown only when the compositor has released another
+     * one to attach next; otherwise the frame is dropped and the next one is rendered into the same surface, so at
+     * high frame rates the attachment changes about once per refresh rather than every frame. Frames rendered by OpenGL
+     * are bottom-up, so they are shown mirrored (the copy path flips while copying instead).
+     */
+    private void presentDirect(int framebuffer, int width, int height, boolean direct) {
+        checkContext();
+        if (width <= 0 || height <= 0) throw new IllegalArgumentException("Invalid frame");
+        int read = glGetInteger(GL_READ_FRAMEBUFFER_BINDING);
+        int draw = glGetInteger(GL_DRAW_FRAMEBUFFER_BINDING);
+        boolean copy = false;
+        try {
+            glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+            int current = glGetFramebufferAttachmentParameteri(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+            boolean ours = attached >= 0 && framebuffer == attachedFramebuffer && current == textures[attached];
+            if (attached >= 0 && (!ours || this.width != width || this.height != height)) {
+                // the game replaced its attachment or resized: our surface no longer holds this frame
+                detach();
+                ours = false;
+            }
+            if (!ours) {
+                int next = direct && this.width == width && this.height == height ? pool.free(i -> true) : -1;
+                if (next < 0) {
+                    copy = true;
+                    return;
+                }
+                // entering direct mode: this frame is in the framebuffer's own texture; drop it and render the next
+                // one into a surface (copying it would take the free surface the attachment needs)
+                ownTexture = current;
+                attachedFramebuffer = framebuffer;
+                attach(next);
+                glFlush();
+                return;
+            }
+            measure();
+            ownTextureStale = true;
+            if (!direct) {
+                // leaving direct mode: show this last direct frame, then give the framebuffer its own texture back
+                long frame = submit();
+                pool.show(attached, true);
+                lastShown = attached;
+                detach();
+                finish(frame);
+                return;
+            }
+            int held = attached;
+            int next = pool.free(i -> i != held);
+            if (next < 0) {
+                // the compositor still holds the other surfaces: drop this frame, the next one overwrites it
+                attachedFresh = true;
+                glFlush();
+                return;
+            }
+            long frame = submit();
+            pool.show(held, true);
+            lastShown = held;
+            attach(next);
+            finish(frame);
+        } finally {
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, read);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw);
+            if (copy) present(0, framebuffer, width, height);
+        }
+    }
+
+    /** Attach surface {@code index} as the colour target of the framebuffer bound to GL_FRAMEBUFFER. */
+    private void attach(int index) {
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, 0x84F5, textures[index], 0);
+        attached = index;
+        attachedFresh = false;
+    }
+
+    /** Give the attached framebuffer its own colour texture back. Leaves GL_FRAMEBUFFER bound to it. */
+    private void detach() {
+        if (attached < 0) return;
+        glBindFramebuffer(GL_FRAMEBUFFER, attachedFramebuffer);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ownTexture, 0);
+        attached = -1;
+        attachedFresh = false;
+    }
+
+    @Override
+    public void syncFramebuffer() {
+        if (!ownTextureStale || ownTexture == 0 || closed || Thread.currentThread() != owner) return;
+        int source = attachedFresh && attached >= 0 ? attached : lastShown;
+        if (source < 0) return;
+        int read = glGetInteger(GL_READ_FRAMEBUFFER_BINDING);
+        int draw = glGetInteger(GL_DRAW_FRAMEBUFFER_BINDING);
+        try {
+            if (sourceFramebuffer == 0) sourceFramebuffer = glGenFramebuffers();
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, sourceFramebuffer);
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ownTexture, 0);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffers[source]);
+            glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+            ownTextureStale = false;
+        } finally {
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, read);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, draw);
+        }
     }
 
     private void present(int texture, int framebuffer, int width, int height) {
         checkContext();
         if (width <= 0 || height <= 0) throw new IllegalArgumentException("Invalid frame");
+        if (framebuffer != 0 && framebuffer == attachedFramebuffer) ownTextureStale = false;
         int read = glGetInteger(GL_READ_FRAMEBUFFER_BINDING);
         int draw = glGetInteger(GL_DRAW_FRAMEBUFFER_BINDING);
         int rectangle = glGetInteger(0x84F6);
@@ -90,7 +212,8 @@ public final class MacosPresenter implements GlPresenter {
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffers[next]);
             glBlitFramebuffer(0, 0, width, height, 0, height, width, 0, GL_COLOR_BUFFER_BIT, GL_NEAREST);
             long frame = submit();
-            pool.show(next);
+            pool.show(next, false);
+            lastShown = next;
             finish(frame);
         } finally {
             glBindFramebuffer(GL_READ_FRAMEBUFFER, read);
@@ -232,6 +355,13 @@ public final class MacosPresenter implements GlPresenter {
     }
 
     private void releaseSurfaces() {
+        if (attached >= 0) {
+            int bound = glGetInteger(GL_FRAMEBUFFER_BINDING);
+            detach();
+            glBindFramebuffer(GL_FRAMEBUFFER, bound);
+        }
+        ownTextureStale = false;
+        lastShown = -1;
         for (int i = 0; i < MacosSurfacePool.SIZE; i++) {
             if (framebuffers[i] != 0) glDeleteFramebuffers(framebuffers[i]);
             if (textures[i] != 0) glDeleteTextures(textures[i]);

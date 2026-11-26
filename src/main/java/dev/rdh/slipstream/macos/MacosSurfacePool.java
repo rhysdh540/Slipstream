@@ -8,6 +8,7 @@ final class MacosSurfacePool {
     private final long layer;
     private final MacosHud hud;
     private int shown = -1;
+    private boolean flipped;
 
     MacosSurfacePool(long window) {
         layer = Macos.attach(window);
@@ -28,7 +29,13 @@ final class MacosSurfacePool {
     }
 
     void show(int index) {
-        Macos.commit(layer, surfaces[index]);
+        show(index, false);
+    }
+
+    /** Show a surface; {@code flipped} for frames stored bottom-up (rendered directly by OpenGL, not copied). */
+    void show(int index, boolean flipped) {
+        Macos.commit(layer, surfaces[index], flipped == this.flipped ? 0 : flipped ? -1 : 1);
+        this.flipped = flipped;
         if (Macos.HUD) hud.present();
         shown = index;
     }

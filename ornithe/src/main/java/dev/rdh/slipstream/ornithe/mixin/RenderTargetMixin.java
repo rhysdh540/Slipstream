@@ -38,7 +38,10 @@ abstract class RenderTargetMixin {
 
     private boolean slipstream$present() {
         Minecraft client = Minecraft.getInstance();
+        // direct presentation only while nothing else reads the main colour texture: no screen (menu blur) and no
+        // post-processing shader (gameRenderer is null while the first frames load)
+        boolean direct = client.screen == null && client.gameRenderer != null && !client.gameRenderer.hasShader();
         return (Object) this == client.getRenderTarget() && frameBufferId >= 0
-                && Presentation.present(frameBufferId, client.options.vsync);
+                && Presentation.present(frameBufferId, client.options.vsync, direct);
     }
 }

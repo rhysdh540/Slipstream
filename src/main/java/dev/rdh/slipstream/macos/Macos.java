@@ -166,12 +166,24 @@ public final class Macos {
     }
 
     static void commit(long layer, long surface) {
+        commit(layer, surface, 0);
+    }
+
+    /**
+     * Set the layer's contents. {@code flip} changes the vertical orientation in the same transaction, so a frame is
+     * never shown the wrong way up: 1 for top-down contents, -1 for bottom-up (mirrored), 0 to leave it as it is.
+     */
+    static void commit(long layer, long surface, int flip) {
         pooled(() -> {
             long transaction = objc_getClass("CATransaction");
             send(transaction, "begin");
             try {
                 set(transaction, "setDisableActions:", true);
                 resize(layer, send(layer, "superlayer"));
+                if (flip != 0) {
+                    long scale = invokePPP(objc_getClass("NSNumber"), sel_getUid("numberWithInt:"), flip, SEND);
+                    invokePPPPV(layer, sel_getUid("setValue:forKeyPath:"), scale, string("transform.scale.y"), SEND);
+                }
                 send(layer, "setContents:", surface);
                 set(layer, "setHidden:", surface == 0);
             } finally {
